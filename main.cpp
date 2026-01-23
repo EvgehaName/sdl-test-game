@@ -14,6 +14,8 @@ int main()
     bool done = false;
 
     SDL_Init(SDL_INIT_VIDEO);
+    const char* currentDrivers = SDL_GetCurrentVideoDriver();
+    std::cout << "Selected driver: " << currentDrivers << std::endl;
     window = SDL_CreateWindow(
         "SDL Window", 500, 500, SDL_WINDOW_OPENGL);
 
@@ -29,7 +31,7 @@ int main()
                 done = true;
             }
         }
-
+        
     }
     SDL_DestroyWindow(window);
     SDL_Quit();
