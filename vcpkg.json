@@ -1,5 +1,6 @@
 {
   "dependencies": [
-    "sdl3"
+    "sdl2",
+    "sdl2-image"
   ]
 }
