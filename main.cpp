@@ -2,7 +2,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-int main()
+int main(int argc, char* argv[])
 {
     int numDrivers = SDL_GetNumVideoDrivers();
     std::cout << "Available video drivers: " << numDrivers << std::endl;
@@ -48,6 +48,7 @@ int main()
     int frameDelay = 1000 / FPS; 
     Uint32 frameStart;
     int frameTime;
+    double angle = 0;
     while (!done) {
         frameStart = SDL_GetTicks();
         SDL_Event event;
@@ -58,24 +59,21 @@ int main()
         case SDL_QUIT:
             done = true;
             break;
+        case SDL_MOUSEMOTION:
+            std::cout << "mouse X: " << event.motion.x << "mouse Y: " << event.motion.y << std::endl;
+            std::cout << "angle: " << angle << std::endl;
+            double dy = event.motion.y - dRectPlayer.y;
+            double dx = event.motion.x - dRectPlayer.x;
+            angle = atan2(dy, dx) * (180.0 / M_PI);
+            break;
         }
         dRectPlayer.h = 64;
         dRectPlayer.w = 64;
-        const Uint8 *keyState = SDL_GetKeyboardState(NULL);
-        if(keyState[SDL_SCANCODE_W]){
-            dRectPlayer.y  -= 2;
-        }
-        if(keyState[SDL_SCANCODE_S]){
-            dRectPlayer.y  += 2;
-        }
-        if(keyState[SDL_SCANCODE_A]){
-            dRectPlayer.x -= 2;
-        }
-        if(keyState[SDL_SCANCODE_D]){
-            dRectPlayer.x  += 2;
-        }
+        dRectPlayer.x = 500 / 2;
+        dRectPlayer.y = 500 / 2;
+
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, playerTexture, NULL, &dRectPlayer);
+        SDL_RenderCopyEx(renderer, playerTexture, nullptr, &dRectPlayer, angle, nullptr, SDL_FLIP_NONE);
         SDL_RenderPresent(renderer);
         std::cout << "X: " << dRectPlayer.x << " "  << "Y: " << dRectPlayer.y <<std::endl;
         frameTime = SDL_GetTicks() - frameStart;
