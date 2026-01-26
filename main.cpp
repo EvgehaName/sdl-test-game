@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
     dRectPlayer.x = 0;
     dRectPlayer.y = 0;
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC); // SDL_RENDERER_PRESENTVSYNC - enable vsync limit frame rate
 
     if(renderer == nullptr)
     {
@@ -48,39 +48,30 @@ int main(int argc, char* argv[])
 
 
     
-    //Uint32 lastTime = SDL_GetTicks();
-    //Uint32 fpsTimer = SDL_GetTicks();
-    std::chrono::time_point lastTime = std::chrono::system_clock::now();
-    //Uint32 fpsTimer = SDL_GetTicks();
-    std::chrono::time_point fpsTimer = std::chrono::system_clock::now();
-    float limitFPS = 60.0f;
-    float targetLimit = limitFPS / 1000;
-    int frameCount = 0;
+    Uint32 lastTime = SDL_GetTicks();
     int fps = 0;
-    float deltaTime = 0;
+    float deltaAccumulator = 0;
+
     float speedPlayer = 500.0f;
     float posX = 0.0f;
     float posY = 0.0f;
 
     double angle = 0;
     while (!done) {
-        //Uint32 currentTime = SDL_GetTicks();
-        std::chrono::time_point currentTime = std::chrono::system_clock::now();
-        std::chrono::duration<float> tim = (currentTime - lastTime);
-        deltaTime = tim.count();
+        Uint32 currentTime = SDL_GetTicks();
+        float deltaTime = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
         std::cout << "DELTA: " << deltaTime << std::endl;
 
 
-        frameCount++;
-        std::chrono::duration<float> dd = currentTime - fpsTimer;
-        if (dd.count() >= 1.0f) {
-            fps = frameCount;
+        fps++;
+        if (deltaAccumulator >= 1.0f) {
             std::string titleFPS = "FPS: " + std::to_string(fps);
             SDL_SetWindowTitle(window, titleFPS.c_str());
-            frameCount = 0;
-            fpsTimer = currentTime;
+            fps = 0;
+            deltaAccumulator = 0;
         }
+        deltaAccumulator += deltaTime;
         
         SDL_Event event;
 
@@ -125,7 +116,6 @@ int main(int argc, char* argv[])
         SDL_RenderCopyEx(renderer, playerTexture, nullptr, &dRectPlayer, angle, nullptr, SDL_FLIP_NONE);
         SDL_RenderPresent(renderer);
         //std::cout << "X: " << dRectPlayer.x << " "  << "Y: " << dRectPlayer.y <<std::endl;
-        SDL_Delay(3);
     }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
