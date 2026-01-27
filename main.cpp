@@ -64,7 +64,7 @@ bool render_sdl()
     return 1;
 }
 
-float get_delta(Uint32 lastTime)
+float get_delta(Uint32& lastTime)
 {
     Uint32 currentTime = SDL_GetTicks();
     float deltaTime = (currentTime - lastTime) / 1000.0f;
