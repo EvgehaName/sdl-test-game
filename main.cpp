@@ -13,6 +13,7 @@ int height = 600;
 int fps = 0;
 float deltaTime = 0;
 float deltaAccumulator = 0;
+SDL_Point mousePosition = { 0,0 };
 
 struct game_player
 {
@@ -22,6 +23,9 @@ struct game_player
 		playerRect.h = sizePlayerSprite;
 		playerTexture = IMG_LoadTexture(renderer, "player.png");
 	}
+
+	SDL_Point get_position_player() const { return { playerRect.x, playerRect.y }; }
+
 	SDL_Texture* playerTexture = 0;
 	SDL_Rect playerRect = { 0,0 };
 	
@@ -33,13 +37,16 @@ struct game_player
 
 struct game_bullet
 {
+	game_bullet(SDL_Point* spawnBullet)
+	{
+		bulletRect.x = spawnBullet->x;
+		bulletRect.y = spawnBullet->y;
+	}
 	SDL_Rect bulletRect = { 0,0,24,24 };
 	SDL_Texture* bulletTexture = IMG_LoadTexture(renderer, "bullet.png");
-	void rand_spawn()
-	{
-		bulletRect.x = std::rand() % width;
-		bulletRect.y = std::rand() % height;
-	}
+	float positionX = 0;
+	float positionY = 0;
+	float speedBullet = 20.0f;
 };
 
 bool init_sdl()
@@ -104,6 +111,7 @@ void frame_rate()
 	deltaAccumulator += deltaTime;
 }
 
+
 void movement_player(game_player* player)
 {
 	const Uint8* state = SDL_GetKeyboardState(NULL);
@@ -127,14 +135,9 @@ void movement_player(game_player* player)
 	player->playerRect.x = (int)player->positionX;
 }
 
-//void renderer_bullet(SDL_Texture* bulletTexture, SDL_Rect* bulletRect, int* count)
+//void movement_bullet(game_bullet* bullet)
 //{
-//	for (size_t i = 0; i < *count; i++)
-//	{
-//		bulletRect->x = std::rand() + 6;
-//		bulletRect->y = std::rand() + 10;
-//		
-//	}
+//	
 //}
 
 int main(int argc, char* argv[])
@@ -147,7 +150,7 @@ int main(int argc, char* argv[])
 
 		game_player player{ 64 };
 		std::vector<game_bullet> buffer_bullet;
-		game_bullet bullet;
+		game_bullet bullet{ &player.get_position_player() };
 		
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
@@ -163,6 +166,8 @@ int main(int argc, char* argv[])
 				} break;
 				case SDL_MOUSEMOTION:
 				{
+					mousePosition.x = event.motion.x;
+					mousePosition.y = event.motion.y;
 					double dy = event.motion.y - player.playerRect.y;
 					double dx = event.motion.x - player.playerRect.x;
 					player.playerAngle = atan2(dy, dx) * (180.0 / M_PI);
@@ -174,7 +179,6 @@ int main(int argc, char* argv[])
 						std::cout << "Create bullet" << std::endl;
 						
 						// Create bullet method
-						bullet.rand_spawn(); // temporary
 						buffer_bullet.push_back(bullet);
 					}
 				} break;
@@ -192,9 +196,12 @@ int main(int argc, char* argv[])
 			// render bullet sprite
 			for (auto bullet : buffer_bullet)
 			{
+				//movement_bullet(&bullet);
+				
 				SDL_RenderCopy(renderer, bullet.bulletTexture, nullptr, &bullet.bulletRect);
 			}
-			
+			bullet.positionX += bullet.speedBullet * deltaTime;
+			bullet.bulletRect.x = (int)bullet.positionX;
 			SDL_RenderPresent(renderer);
 		}
 	}
