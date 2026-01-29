@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include <chrono>
+#include <vector>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
@@ -16,17 +16,30 @@ float deltaAccumulator = 0;
 
 struct game_player
 {
-	game_player(int widthSprite, int heightSprite)
+	game_player(int sizePlayerSprite)
 	{
-		playerRect.w = widthSprite;
-		playerRect.h = heightSprite;
+		playerRect.w = sizePlayerSprite;
+		playerRect.h = sizePlayerSprite;
+		playerTexture = IMG_LoadTexture(renderer, "player.png");
 	}
 	SDL_Texture* playerTexture = 0;
 	SDL_Rect playerRect = { 0,0 };
+	
 	double playerAngle = 0;
 	float positionX = 0;
 	float positionY = 0;
 	float speedPlayer = 500.0f;
+};
+
+struct game_bullet
+{
+	SDL_Rect bulletRect = { 0,0,24,24 };
+	SDL_Texture* bulletTexture = IMG_LoadTexture(renderer, "bullet.png");
+	void rand_spawn()
+	{
+		bulletRect.x = std::rand() % width;
+		bulletRect.y = std::rand() % height;
+	}
 };
 
 bool init_sdl()
@@ -47,7 +60,7 @@ bool init_sdl()
 
 	// SDL create window (create window context to flags - SDL_WINDOW_OPENGL or SDL_WINDOW_VULKAN. 0 - default)
 	window = SDL_CreateWindow(
-		titleWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
+		titleWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL);
 
 	SDL_SetWindowResizable(window, SDL_TRUE);
 
@@ -114,6 +127,16 @@ void movement_player(game_player* player)
 	player->playerRect.x = (int)player->positionX;
 }
 
+//void renderer_bullet(SDL_Texture* bulletTexture, SDL_Rect* bulletRect, int* count)
+//{
+//	for (size_t i = 0; i < *count; i++)
+//	{
+//		bulletRect->x = std::rand() + 6;
+//		bulletRect->y = std::rand() + 10;
+//		
+//	}
+//}
+
 int main(int argc, char* argv[])
 {
 	if (init_sdl())
@@ -122,9 +145,10 @@ int main(int argc, char* argv[])
 
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 
-		game_player player{ 64,64 };
-		player.playerTexture = IMG_LoadTexture(renderer, "player.png");
-
+		game_player player{ 64 };
+		std::vector<game_bullet> buffer_bullet;
+		game_bullet bullet;
+		
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
 		{
@@ -143,15 +167,34 @@ int main(int argc, char* argv[])
 					double dx = event.motion.x - player.playerRect.x;
 					player.playerAngle = atan2(dy, dx) * (180.0 / M_PI);
 				} break;
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					if (event.button.clicks == 1 && event.button.button == 1) // if count clicks mouse and click Left Mouse Button
+					{
+						std::cout << "Create bullet" << std::endl;
+						
+						// Create bullet method
+						bullet.rand_spawn(); // temporary
+						buffer_bullet.push_back(bullet);
+					}
+				} break;
 				}
 			}
 			deltaTime = get_delta(lastTime);
 			frame_rate();
 
-			movement_player(&player);		
+			movement_player(&player);
 
 			SDL_RenderClear(renderer);
+			// render player sprite
 			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
+			
+			// render bullet sprite
+			for (auto bullet : buffer_bullet)
+			{
+				SDL_RenderCopy(renderer, bullet.bulletTexture, nullptr, &bullet.bulletRect);
+			}
+			
 			SDL_RenderPresent(renderer);
 		}
 	}
