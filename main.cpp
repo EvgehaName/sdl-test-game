@@ -41,14 +41,23 @@ struct game_bullet
 	{
 		bulletRect.x = spawnBullet->x;
 		bulletRect.y = spawnBullet->y;
+		startX = spawnBullet->x;
+		startY = spawnBullet->y;
 	}
 	SDL_Rect bulletRect = { 0,0,24,24 };
 	SDL_Texture* bulletTexture = IMG_LoadTexture(renderer, "bullet.png");
 	float positionX = 0;
 	float positionY = 0;
-	float speedBullet = 20.0f;
+	float speedBullet = 200.0f;
+	float traveled = 0.0f;
+	float targetPosX = 0.0f;
+	float targetPosY = 0.0f;
+	float startX = 0.0f;
+	float startY = 0.0f;
+	bool isActive = true;
 };
 
+std::vector<game_bullet> buffer_bullet;
 bool init_sdl()
 {
 	// Output count drivers and elem driver
@@ -135,10 +144,41 @@ void movement_player(game_player* player)
 	player->playerRect.x = (int)player->positionX;
 }
 
-//void movement_bullet(game_bullet* bullet)
-//{
-//	
-//}
+void set_distance_bullet(game_bullet* bullet)
+{
+	float dx = mousePosition.x - bullet->startX;
+	float dy = mousePosition.y - bullet->startY;
+
+	float length = sqrt(dx * dx + dy * dy);
+	if (length > 0.0f) {
+		dx /= length;
+		dy /= length;
+	}
+	bullet->targetPosX = dx;
+	bullet->targetPosY = dy;
+	bullet->positionX = bullet->startX;
+	bullet->positionY = bullet->startY;
+}
+
+void movement_bullet(game_bullet* bullet)
+{
+	if (bullet->isActive == false)
+		return;
+	bullet->positionX += bullet->targetPosX * bullet->speedBullet * deltaTime;
+	bullet->positionY += bullet->targetPosY * bullet->speedBullet * deltaTime;
+
+	bullet->traveled += bullet->speedBullet * deltaTime;
+	if (bullet->traveled >= 500.0f)
+	{
+		bullet->positionX = bullet->startX + bullet->targetPosX * 500.0f;
+		bullet->positionY = bullet->startY + bullet->targetPosY * 500.0f;
+		
+		bullet->isActive = false;
+	}
+
+	bullet->bulletRect.x = (int)bullet->positionX;
+	bullet->bulletRect.y = (int)bullet->positionY;
+}
 
 int main(int argc, char* argv[])
 {
@@ -149,8 +189,8 @@ int main(int argc, char* argv[])
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 
 		game_player player{ 64 };
-		std::vector<game_bullet> buffer_bullet;
 		game_bullet bullet{ &player.get_position_player() };
+		
 		
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
@@ -166,8 +206,7 @@ int main(int argc, char* argv[])
 				} break;
 				case SDL_MOUSEMOTION:
 				{
-					mousePosition.x = event.motion.x;
-					mousePosition.y = event.motion.y;
+					
 					double dy = event.motion.y - player.playerRect.y;
 					double dx = event.motion.x - player.playerRect.x;
 					player.playerAngle = atan2(dy, dx) * (180.0 / M_PI);
@@ -176,10 +215,13 @@ int main(int argc, char* argv[])
 				{
 					if (event.button.clicks == 1 && event.button.button == 1) // if count clicks mouse and click Left Mouse Button
 					{
+						mousePosition.x = event.motion.x;
+						mousePosition.y = event.motion.y;
 						std::cout << "Create bullet" << std::endl;
 						
 						// Create bullet method
 						buffer_bullet.push_back(bullet);
+						set_distance_bullet(&buffer_bullet.back());
 					}
 				} break;
 				}
@@ -188,20 +230,17 @@ int main(int argc, char* argv[])
 			frame_rate();
 
 			movement_player(&player);
-
+			
 			SDL_RenderClear(renderer);
 			// render player sprite
 			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
 			
 			// render bullet sprite
-			for (auto bullet : buffer_bullet)
+			for(auto& bull : buffer_bullet)
 			{
-				//movement_bullet(&bullet);
-				
-				SDL_RenderCopy(renderer, bullet.bulletTexture, nullptr, &bullet.bulletRect);
+				movement_bullet(&bull);
+				SDL_RenderCopy(renderer, bull.bulletTexture, nullptr, &bull.bulletRect);
 			}
-			bullet.positionX += bullet.speedBullet * deltaTime;
-			bullet.bulletRect.x = (int)bullet.positionX;
 			SDL_RenderPresent(renderer);
 		}
 	}
