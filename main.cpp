@@ -54,10 +54,11 @@ struct game_bullet
 	float targetPosY = 0.0f;
 	float startX = 0.0f;
 	float startY = 0.0f;
+	float distance = 500.0f;
 	bool isActive = true;
 };
-
 std::vector<game_bullet> buffer_bullet;
+
 bool init_sdl()
 {
 	// Output count drivers and elem driver
@@ -144,8 +145,10 @@ void movement_player(game_player* player)
 	player->playerRect.x = (int)player->positionX;
 }
 
-void set_distance_bullet(game_bullet* bullet)
+void set_target_bullet(game_bullet* bullet, SDL_Point* startPosition)
 {
+	bullet->startX = startPosition->x;
+	bullet->startY = startPosition->y;
 	float dx = mousePosition.x - bullet->startX;
 	float dy = mousePosition.y - bullet->startY;
 
@@ -168,12 +171,18 @@ void movement_bullet(game_bullet* bullet)
 	bullet->positionY += bullet->targetPosY * bullet->speedBullet * deltaTime;
 
 	bullet->traveled += bullet->speedBullet * deltaTime;
-	if (bullet->traveled >= 500.0f)
+	if (bullet->traveled >= bullet->distance)
 	{
-		bullet->positionX = bullet->startX + bullet->targetPosX * 500.0f;
-		bullet->positionY = bullet->startY + bullet->targetPosY * 500.0f;
-		
+		bullet->positionX = bullet->startX + bullet->targetPosX * bullet->distance;
+		bullet->positionY = bullet->startY + bullet->targetPosY * bullet->distance;
 		bullet->isActive = false;
+		for (size_t i = 0; i < buffer_bullet.size(); i++)
+		{
+			if (buffer_bullet.at(i).traveled >= bullet->distance)
+			{
+				buffer_bullet.erase(buffer_bullet.begin() + i);
+			}
+		}
 	}
 
 	bullet->bulletRect.x = (int)bullet->positionX;
@@ -221,7 +230,7 @@ int main(int argc, char* argv[])
 						
 						// Create bullet method
 						buffer_bullet.push_back(bullet);
-						set_distance_bullet(&buffer_bullet.back());
+						set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
 					}
 				} break;
 				}
