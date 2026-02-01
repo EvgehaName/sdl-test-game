@@ -59,6 +59,17 @@ struct game_bullet
 };
 std::vector<game_bullet> buffer_bullet;
 
+struct level
+{
+	level(std::string level_name)
+	{
+		levelName = level_name;
+	}
+	std::string levelName;
+	SDL_Surface* surface = IMG_Load((levelName + "_path.png").c_str());
+	SDL_Texture* texture = IMG_LoadTexture(renderer, (levelName + "_design.png").c_str());
+};
+
 bool init_sdl()
 {
 	// Output count drivers and elem driver
@@ -188,6 +199,11 @@ void movement_bullet(game_bullet* bullet)
 	bullet->bulletRect.x = (int)bullet->positionX;
 	bullet->bulletRect.y = (int)bullet->positionY;
 }
+
+//void load_destionation_path(SDL_Surface* surface)
+//{
+//	unsigned char* image_data = 
+//}
 
 int main(int argc, char* argv[])
 {
