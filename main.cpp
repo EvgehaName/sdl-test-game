@@ -28,7 +28,7 @@ struct game_player
 
 	SDL_Texture* playerTexture = 0;
 	SDL_Rect playerRect = { 0,0 };
-	
+
 	double playerAngle = 0;
 	float positionX = 0;
 	float positionY = 0;
@@ -61,11 +61,20 @@ std::vector<game_bullet> buffer_bullet;
 
 struct game_ball
 {
-	SDL_Rect ballRect{0,0,24,24};
+	game_ball(SDL_Point startPosition)
+	{
+		ballRect.x = startPosition.x;
+		ballRect.y = startPosition.y;
+	}
+	SDL_Rect ballRect{ 0,0,24,24 };
 	SDL_Texture* ballTexture = IMG_LoadTexture(renderer, "bullet.png");
 	float positionX = 0.0f;
 	float positionY = 0.0f;
+	float speedBall = 100.0f;
+	int targetIndexPath = 0;
+	int padding_object = 5;
 };
+std::vector<game_ball> buffer_ball;
 
 struct game_level
 {
@@ -74,16 +83,9 @@ struct game_level
 		//levelName = level_name;
 		surface = IMG_Load((levelName + "_path.png").c_str());
 	}
-	void load_ball(game_ball* ball, int count)
-	{
-		for (int i = 0; i < count; i++)
-		{
-			buffer_ball.push_back(ball);
-		}
-	}
+
 	//std::string levelName;
 	SDL_Surface* surface;
-	std::vector<game_ball*> buffer_ball;
 	//SDL_Texture* texture = IMG_LoadTexture(renderer, (levelName + "_design.png").c_str());
 };
 
@@ -219,10 +221,27 @@ void movement_bullet(game_bullet* bullet)
 	bullet->bulletRect.y = (int)bullet->positionY;
 }
 
-//void movement_ball(game_ball* ball)
-//{
-//
-//}
+void movement_ball(game_ball* ball, std::vector<SDL_Point>* path)
+{
+	if (ball->targetIndexPath >= path->size())
+		return;
+	SDL_Point target = path->at(ball->targetIndexPath);
+
+	float dx = target.x - ball->ballRect.x;
+	float dy = target.y - ball->ballRect.y;
+
+	float length = sqrt(dx * dx + dy * dy);
+	if (length < ball->speedBall * deltaTime) {
+		ball->positionX = (float)target.x;
+		ball->positionY = (float)target.y;
+		ball->targetIndexPath++;
+		return;
+	}
+	dx /= length;
+	dy /= length;
+	ball->ballRect.x += dx * ball->speedBall * deltaTime;
+	ball->ballRect.y += dy * ball->speedBall * deltaTime;
+}
 
 std::vector<SDL_Point> load_destionation_path(SDL_Surface* surface)
 {
@@ -239,7 +258,7 @@ std::vector<SDL_Point> load_destionation_path(SDL_Surface* surface)
 			int B = image_data[index + 3];
 			if (R == 255 && G == 0 && B == 0)
 			{
-				temp_data.push_back({y*16,x*16});
+				temp_data.push_back({ y * 16,x * 16 });
 			}
 		}
 	}
@@ -257,10 +276,14 @@ int main(int argc, char* argv[])
 		game_player player{ 64 };
 		game_bullet bullet{ &player.get_position_player() };
 		game_level level{ "map_test" };
+		// temp
 		std::vector<SDL_Point> temp_point_path = load_destionation_path(level.surface);
-		game_ball ball;
-		level.load_ball(&ball, 5);
-		
+		game_ball ball{ temp_point_path.at(0) };
+		for (int i = 0; i < 1; i++)
+		{
+			buffer_ball.push_back(ball);
+		}
+
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
 		{
@@ -275,7 +298,6 @@ int main(int argc, char* argv[])
 				} break;
 				case SDL_MOUSEMOTION:
 				{
-					
 					double dy = event.motion.y - player.playerRect.y;
 					double dx = event.motion.x - player.playerRect.x;
 					player.playerAngle = atan2(dy, dx) * (180.0 / M_PI);
@@ -287,10 +309,11 @@ int main(int argc, char* argv[])
 						mousePosition.x = event.motion.x;
 						mousePosition.y = event.motion.y;
 						std::cout << "Create bullet" << std::endl;
-						
+
 						// Create bullet method
 						buffer_bullet.push_back(bullet);
 						set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
+						
 					}
 				} break;
 				}
@@ -299,24 +322,17 @@ int main(int argc, char* argv[])
 			frame_rate();
 
 			movement_player(&player);
-			
+
 			SDL_RenderClear(renderer);
 			// render player sprite
 			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
-			//for (auto& ball : level.buffer_ball)
-			//{
-			//	//movement_ball(ball);
-			//	for (int i = 0; i < temp.size(); i++)
-			//	{
-			//		ball->positionX = temp.at(i).x;
-			//		ball->positionY = temp.at(i).y;
-			//		ball->ballRect.x = (int)ball->positionX;
-			//		ball->ballRect.y = (int)ball->positionY;
-			//	}
-			//	SDL_RenderCopy(renderer, ball->ballTexture, nullptr, &ball->ballRect);
-			//}
+			for (auto& ball : buffer_ball)
+			{
+				movement_ball(&ball, &temp_point_path); // temp
+				SDL_RenderCopy(renderer, ball.ballTexture, nullptr, &ball.ballRect);
+			}
 			// render bullet sprite
-			for(auto& bull : buffer_bullet)
+			for (auto& bull : buffer_bullet)
 			{
 				movement_bullet(&bull);
 				SDL_RenderCopy(renderer, bull.bulletTexture, nullptr, &bull.bulletRect);
