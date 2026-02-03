@@ -15,6 +15,10 @@ float deltaTime = 0;
 float deltaAccumulator = 0;
 SDL_Point mousePosition = { 0,0 };
 
+// Editor parametr * temp *
+bool isEditor = true;
+std::vector<SDL_Point> point_path;
+
 struct game_player
 {
 	game_player(int sizePlayerSprite)
@@ -243,28 +247,6 @@ void movement_ball(game_ball* ball, std::vector<SDL_Point>* path)
 	ball->ballRect.y += dy * ball->speedBall * deltaTime;
 }
 
-std::vector<SDL_Point> load_destionation_path(SDL_Surface* surface)
-{
-	unsigned char* image_data = (unsigned char*)surface->pixels;
-	std::vector<SDL_Point> temp_data;
-	for (int x = 0; x < surface->w; x++)
-	{
-		for (int y = 0; y < surface->h; y++)
-		{
-			int index = x * surface->w + y;
-			index *= 3;
-			int R = image_data[index + 0];
-			int G = image_data[index + 2];
-			int B = image_data[index + 3];
-			if (R == 255 && G == 0 && B == 0)
-			{
-				temp_data.push_back({ y * 16,x * 16 });
-			}
-		}
-	}
-	return temp_data;
-}
-
 int main(int argc, char* argv[])
 {
 	if (init_sdl())
@@ -276,13 +258,8 @@ int main(int argc, char* argv[])
 		game_player player{ 64 };
 		game_bullet bullet{ &player.get_position_player() };
 		game_level level{ "map_test" };
-		// temp
-		std::vector<SDL_Point> temp_point_path = load_destionation_path(level.surface);
-		game_ball ball{ temp_point_path.at(0) };
-		for (int i = 0; i < 1; i++)
-		{
-			buffer_ball.push_back(ball);
-		}
+		
+		
 
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
@@ -306,16 +283,44 @@ int main(int argc, char* argv[])
 				{
 					if (event.button.clicks == 1 && event.button.button == 1) // if count clicks mouse and click Left Mouse Button
 					{
-						mousePosition.x = event.motion.x;
-						mousePosition.y = event.motion.y;
-						std::cout << "Create bullet" << std::endl;
+						if (!isEditor)
+						{
+							mousePosition.x = event.motion.x;
+							mousePosition.y = event.motion.y;
+							std::cout << "Create bullet" << std::endl;
 
-						// Create bullet method
-						buffer_bullet.push_back(bullet);
-						set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
-						
+							// Create bullet method
+							buffer_bullet.push_back(bullet);
+							set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
+						}
+						else
+						{
+							mousePosition.x = event.motion.x;
+							mousePosition.y = event.motion.y;
+							point_path.push_back(mousePosition);
+						}
 					}
 				} break;
+				case SDL_KEYUP:
+				{
+					if (event.key.keysym.sym == SDLK_BACKQUOTE) // enabled Editor map level
+					{
+						if (isEditor)
+						{
+							isEditor = false;
+							game_ball ball{ point_path.at(0) };
+							for (int i = 0; i < 1; i++)
+							{
+								buffer_ball.push_back(ball);
+							}
+						}
+						else
+						{
+							
+							isEditor = true;
+						}
+					}
+				}
 				}
 			}
 			deltaTime = get_delta(lastTime);
@@ -326,10 +331,13 @@ int main(int argc, char* argv[])
 			SDL_RenderClear(renderer);
 			// render player sprite
 			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
-			for (auto& ball : buffer_ball)
+			if (!isEditor)
 			{
-				movement_ball(&ball, &temp_point_path); // temp
-				SDL_RenderCopy(renderer, ball.ballTexture, nullptr, &ball.ballRect);
+				for (auto& ball : buffer_ball)
+				{
+					movement_ball(&ball, &point_path); // temp
+					SDL_RenderCopy(renderer, ball.ballTexture, nullptr, &ball.ballRect);
+				}
 			}
 			// render bullet sprite
 			for (auto& bull : buffer_bullet)
