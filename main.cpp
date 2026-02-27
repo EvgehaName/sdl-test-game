@@ -8,16 +8,14 @@ SDL_Window* window;
 SDL_Renderer* renderer;
 const char* titleWindow = "Game zumma | development";
 bool isRunning = false;
-int width = 600;
+int width = 800;
 int height = 600;
 int fps = 0;
 float deltaTime = 0;
 float deltaAccumulator = 0;
 SDL_Point mousePosition = { 0,0 };
 
-// Editor parametr * temp *
-bool isEditor = true;
-std::vector<SDL_Point> point_path;
+
 
 struct game_player
 {
@@ -80,19 +78,109 @@ struct game_ball
 };
 std::vector<game_ball> buffer_ball;
 
-struct game_level
-{
-	game_level(std::string levelName)
-	{
-		//levelName = level_name;
-		surface = IMG_Load((levelName + "_path.png").c_str());
-	}
-
-	//std::string levelName;
-	SDL_Surface* surface;
-	//SDL_Texture* texture = IMG_LoadTexture(renderer, (levelName + "_design.png").c_str());
+struct Point {
+	float x, y;
+	Point(float x = 0, float y = 0) : x(x), y(y) {}
 };
 
+
+struct PathSegment {
+	Point start;
+	Point end;
+	float length;
+
+	PathSegment(Point s, Point e) : start(s), end(e) {
+		float dx = e.x - s.x;
+		float dy = e.y - s.y;
+		length = sqrt(dx * dx + dy * dy);
+	}
+
+	Point getPoint(float t) const { // t от 0 до 1 вдоль сегмента
+		return Point(
+			start.x + (end.x - start.x) * t,
+			start.y + (end.y - start.y) * t
+		);
+	}
+};
+
+struct ZumaPath {
+	std::vector<PathSegment> segments;
+	float totalLength = 0;
+
+	void setPoints(const std::vector<Point>& points) {
+		segments.clear();
+		totalLength = 0;
+
+		if (points.size() < 2) return;
+
+		for (size_t i = 0; i < points.size() - 1; i++) {
+			segments.push_back(PathSegment(points[i], points[i + 1]));
+			totalLength += segments.back().length;
+		}
+	}
+
+	Point getPointAtDistance(float distance) {
+		if (segments.empty()) return Point();
+		if (distance <= 0) return segments[0].start;
+		if (distance >= totalLength) return segments.back().end;
+
+		float accumulated = 0;
+		for (const auto& seg : segments) {
+			if (distance <= accumulated + seg.length) {
+				float t = (distance - accumulated) / seg.length;
+				return seg.getPoint(t);
+			}
+			accumulated += seg.length;
+		}
+
+		return segments.back().end;
+	}
+};
+
+struct ZumaBall {
+	float distance = 0;        // расстояние от начала пути
+	float speed = 50.0f;       // скорость (пикселей в секунду)
+	Point position;
+	SDL_Rect rect = { 0, 0, 24, 24 };
+	SDL_Texture* texture = nullptr;
+	bool isActive = true;
+	int color = 0; // 0-3 для разных цветов
+
+	void update(float deltaTime, ZumaPath& path) {
+		if (!isActive) return;
+
+		distance += speed * deltaTime;
+
+		if (distance >= path.totalLength) {
+			distance = path.totalLength;
+			isActive = false; // шарик достиг конца и исчез
+			// или можно зациклить: distance = 0;
+		}
+
+		position = path.getPointAtDistance(distance);
+		rect.x = position.x - rect.w / 2;
+		rect.y = position.y - rect.h / 2;
+	}
+
+	void render(SDL_Renderer* renderer) {
+		if (!isActive) return;
+
+		// Разные цвета для разных шариков
+		switch (color) {
+		case 0: SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); break;   // красный
+		case 1: SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255); break;   // зеленый
+		case 2: SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255); break;   // синий
+		case 3: SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); break; // желтый
+		}
+
+		if (texture) {
+			SDL_RenderCopy(renderer, texture, nullptr, &rect);
+		}
+		else {
+			SDL_RenderFillRect(renderer, &rect);
+		}
+	}
+};
 
 
 bool init_sdl()
@@ -225,27 +313,6 @@ void movement_bullet(game_bullet* bullet)
 	bullet->bulletRect.y = (int)bullet->positionY;
 }
 
-void movement_ball(game_ball* ball, std::vector<SDL_Point>* path)
-{
-	if (ball->targetIndexPath >= path->size())
-		return;
-	SDL_Point target = path->at(ball->targetIndexPath);
-
-	float dx = target.x - ball->ballRect.x;
-	float dy = target.y - ball->ballRect.y;
-
-	float length = sqrt(dx * dx + dy * dy);
-	if (length < ball->speedBall * deltaTime) {
-		ball->positionX = (float)target.x;
-		ball->positionY = (float)target.y;
-		ball->targetIndexPath++;
-		return;
-	}
-	dx /= length;
-	dy /= length;
-	ball->ballRect.x += dx * ball->speedBall * deltaTime;
-	ball->ballRect.y += dy * ball->speedBall * deltaTime;
-}
 
 int main(int argc, char* argv[])
 {
@@ -257,9 +324,18 @@ int main(int argc, char* argv[])
 
 		game_player player{ 64 };
 		game_bullet bullet{ &player.get_position_player() };
-		game_level level{ "map_test" };
-		
-		
+
+		ZumaPath gamePath;
+		std::vector<ZumaBall> zumaBalls;
+		float spawnTimer = 0;
+		float spawnInterval = 1.0f; // секунда между появлением шариков
+
+		//float pathT = 0;
+		//float pathSpeed = 0.2f;
+		//Point ballPos;
+		//
+		//// Контрольные точки
+		std::vector<Point> bezierCurve;
 
 		Uint32 lastTime = SDL_GetTicks();
 		while (!isRunning)
@@ -283,62 +359,93 @@ int main(int argc, char* argv[])
 				{
 					if (event.button.clicks == 1 && event.button.button == 1) // if count clicks mouse and click Left Mouse Button
 					{
-						if (!isEditor)
-						{
-							mousePosition.x = event.motion.x;
-							mousePosition.y = event.motion.y;
-							std::cout << "Create bullet" << std::endl;
+						mousePosition.x = event.motion.x;
+						mousePosition.y = event.motion.y;
+						std::cout << "Create bullet" << std::endl;
 
-							// Create bullet method
-							buffer_bullet.push_back(bullet);
-							set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
-						}
-						else
-						{
-							mousePosition.x = event.motion.x;
-							mousePosition.y = event.motion.y;
-							point_path.push_back(mousePosition);
-						}
+						// Create bullet method
+						buffer_bullet.push_back(bullet);
+						set_target_bullet(&buffer_bullet.back(), &player.get_position_player());
+
+						// Create path ball
+						Point newBezier(mousePosition.x, mousePosition.y);
+						bezierCurve.push_back(newBezier);
+
+						gamePath.setPoints(bezierCurve);
 					}
 				} break;
 				case SDL_KEYUP:
 				{
-					if (event.key.keysym.sym == SDLK_BACKQUOTE) // enabled Editor map level
-					{
-						if (isEditor)
-						{
-							isEditor = false;
-							game_ball ball{ point_path.at(0) };
-							for (int i = 0; i < 1; i++)
-							{
-								buffer_ball.push_back(ball);
-							}
-						}
-						else
-						{
-							
-							isEditor = true;
-						}
-					}
+
+
 				}
 				}
 			}
 			deltaTime = get_delta(lastTime);
 			frame_rate();
 
-			movement_player(&player);
-
+			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 			SDL_RenderClear(renderer);
-			// render player sprite
-			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
-			if (!isEditor)
-			{
-				for (auto& ball : buffer_ball)
-				{
-					movement_ball(&ball, &point_path); // temp
-					SDL_RenderCopy(renderer, ball.ballTexture, nullptr, &ball.ballRect);
+
+			// refactor
+			if (!gamePath.segments.empty()) {
+				spawnTimer += deltaTime;
+				while (spawnTimer >= spawnInterval) {
+					spawnTimer -= spawnInterval;
+
+					ZumaBall newBall;
+					newBall.distance = 0;
+					newBall.speed = 50.0f + rand() % 50; // случайная скорость
+					newBall.color = rand() % 4; // случайный цвет
+					newBall.position = gamePath.segments[0].start;
+					zumaBalls.push_back(newBall);
 				}
 			}
+
+			// Обновление шариков
+			for (auto& ball : zumaBalls) {
+				ball.update(deltaTime, gamePath);
+			}
+
+			// Удаление шариков, которые дошли до конца
+			zumaBalls.erase(
+				std::remove_if(zumaBalls.begin(), zumaBalls.end(),
+					[](const ZumaBall& b) { return !b.isActive; }),
+				zumaBalls.end()
+			);
+
+			// Отрисовка пути
+			if (!gamePath.segments.empty()) {
+				// Рисуем сам путь (серый)
+				SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+				for (const auto& seg : gamePath.segments) {
+					SDL_RenderDrawLine(renderer,
+						seg.start.x, seg.start.y,
+						seg.end.x, seg.end.y);
+				}
+
+				for (int i = 0; i < gamePath.segments.size(); i++)
+				{
+					// Рисуем опорные точки (красные)
+					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+					SDL_Rect startPoint = { (int)gamePath.segments[i].start.x - 5,
+										   (int)gamePath.segments[i].start.y - 5, 10, 10 };
+					SDL_RenderFillRect(renderer, &startPoint);
+				}
+			}
+
+			// Отрисовка шариков
+			for (auto& ball : zumaBalls) {
+				ball.render(renderer);
+			}
+
+
+			
+			movement_player(&player);
+
+			// render player sprite
+			SDL_RenderCopyEx(renderer, player.playerTexture, nullptr, &player.playerRect, player.playerAngle, nullptr, SDL_FLIP_NONE);
+			
 			// render bullet sprite
 			for (auto& bull : buffer_bullet)
 			{
